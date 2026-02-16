@@ -24,6 +24,10 @@ pub fn run(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let mut bytes_per_row: usize = 16;
 
     let mut cursor_col: usize = 0;
+    let mut cursor_row: usize = 0;
+
+    let mut content_rows: usize = 0;
+    let mut viewport_rows: usize = 0;
 
     loop {
         if event::poll(std::time::Duration::from_millis(200))? {
@@ -32,11 +36,19 @@ pub fn run(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
                     KeyCode::Char('q') => break,
 
                     KeyCode::Down => {
-                        offset = (offset + bytes_per_row as u64).min(size);
+                        if cursor_row + 1 < content_rows.min(viewport_rows) {
+                            cursor_row += 1;
+                        } else {
+                            offset = (offset + bytes_per_row as u64).min(size.saturating_sub((viewport_rows * bytes_per_row) as u64));
+                        }
                     }
 
                     KeyCode::Up => {
-                        offset = offset.saturating_sub(bytes_per_row as u64);
+                        if cursor_row > 0 {
+                            cursor_row -= 1;
+                        } else {
+                            offset = offset.saturating_sub(bytes_per_row as u64);
+                        }
                     }
 
                     KeyCode::Left => {
@@ -58,45 +70,25 @@ pub fn run(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
 
         terminal.draw(|f| {
             let area = f.area();
-            let rows = area.height.saturating_sub(2) as usize;
+            viewport_rows = area.height.saturating_sub(2) as usize;
             bytes_per_row = ((area.width as usize).saturating_sub(15) / 4).max(1);
 
             let mut lines = vec![
                 Line::from(format!("{} - {} MB", path.display(), size as f32 * 1e-6))
             ];
 
-            let bytes_to_read = rows * bytes_per_row;
+            let bytes_to_read = viewport_rows * bytes_per_row;
             let mut buffer = vec![0u8; bytes_to_read];
 
             file.seek(SeekFrom::Start(offset)).unwrap();
             let bytes_read = file.read(&mut buffer).unwrap();
 
-            let content_rows = (bytes_read + bytes_per_row - 1) / bytes_per_row;
-            let top_padding = ((rows).saturating_sub(content_rows)) / 2;
+            content_rows = (bytes_read + bytes_per_row - 1) / bytes_per_row;
+            let top_padding = ((viewport_rows).saturating_sub(content_rows)) / 2;
 
             for _ in 0..top_padding {
                 lines.push(Line::from(""));
             }
-
-            let content_width: u16 = (8 + 4 + 3 * bytes_per_row + 3 + bytes_per_row) as u16;
-
-            let horizontal = Layout::default()
-                .direction(Direction::Horizontal)
-                .constraints([
-                    Constraint::Min(0),
-                    Constraint::Length(content_width),
-                    Constraint::Min(0),
-                ])
-                .split(area);
-
-            let vertical = Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([
-                    Constraint::Min(0),
-                    Constraint::Length(content_rows as u16),
-                    Constraint::Min(0),
-                ])
-                .split(horizontal[1]);
 
             for row in 0..content_rows {
                 let start = row * bytes_per_row;
@@ -122,7 +114,7 @@ pub fn run(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
                 spans.push(Span::raw("    "));
 
                 for (k, b) in slice.iter().enumerate() {
-                    if k == cursor_col && row == 0 {
+                    if k == cursor_col && row == cursor_row {
                         spans.push(Span::styled(
                             format!("{:02X}", b),
                             Style::default().bg(Color::White)
@@ -143,7 +135,7 @@ pub fn run(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
                         '.'
                     };
 
-                    if k == cursor_col && row == 0 {
+                    if k == cursor_col && row == cursor_row {
                         spans.push(Span::styled(
                             c.to_string(),
                             Style::default().fg(Color::Green).bg(Color::White)
