@@ -22,7 +22,10 @@ pub fn run(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let size = file.metadata()?.len();
 
     let mut offset = 0u64;
-    let mut bytes_per_row: usize = 16; // updated each frame
+    let mut bytes_per_row: usize = 16;
+
+    let mut cursor_row = 0usize;
+    let mut cursor_col = 0usize;
 
     loop {
         if event::poll(std::time::Duration::from_millis(200))? {
@@ -36,6 +39,18 @@ pub fn run(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
 
                     KeyCode::Up => {
                         offset = offset.saturating_sub(bytes_per_row as u64);
+                    }
+
+                    KeyCode::Left => {
+                        if cursor_col > 0 {
+                            cursor_col -= 1;
+                        }
+                    }
+
+                    KeyCode::Right => {
+                        if cursor_col < bytes_per_row - 1 {
+                            cursor_col += 1;
+                        }
                     }
 
                     _ => {},
@@ -104,23 +119,39 @@ pub fn run(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
 
                 spans.push(Span::raw("    "));
 
-                for b in slice {
-                    spans.push(Span::raw(format!("{:02X} ", b)));
+                for (k, b) in slice.into_iter().enumerate() {
+                    if k == cursor_col && row == cursor_row {
+                        spans.push(Span::styled(
+                            format!("{:02X}", b),
+                            Style::default().bg(Color::White)
+                        ));
+
+                        spans.push(Span::raw(" "));
+                    } else {
+                        spans.push(Span::raw(format!("{:02X} ", b)));
+                    }
                 }
 
                 spans.push(Span::raw("   "));
                 
-                for b in slice {
+                for (k, b) in slice.into_iter().enumerate() {
                     let c = if b.is_ascii_graphic() || *b == b' ' {
                         *b as char
                     } else {
                         '.'
                     };
 
-                    spans.push(Span::styled(
-                        c.to_string(),
-                        Style::default().fg(Color::Green),
-                    ));
+                    if k == cursor_col && row == cursor_row {
+                        spans.push(Span::styled(
+                            c.to_string(),
+                            Style::default().fg(Color::Green).bg(Color::White)
+                        ));
+                    } else {
+                        spans.push(Span::styled(
+                            c.to_string(),
+                            Style::default().fg(Color::Green),
+                        ));
+                    }
                 }
 
                 lines.push(Line::from(spans));
