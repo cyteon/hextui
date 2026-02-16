@@ -11,6 +11,7 @@ fn main() {
 
     if !path.exists() {
        eprintln!("could not find file {}", path.display());
+       return;
     }
 
     tui::run(path);

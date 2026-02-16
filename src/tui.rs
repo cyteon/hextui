@@ -24,7 +24,6 @@ pub fn run(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let mut offset = 0u64;
     let mut bytes_per_row: usize = 16;
 
-    let mut cursor_row = 0usize;
     let mut cursor_col = 0usize;
 
     loop {
@@ -120,7 +119,7 @@ pub fn run(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
                 spans.push(Span::raw("    "));
 
                 for (k, b) in slice.into_iter().enumerate() {
-                    if k == cursor_col && row == cursor_row {
+                    if k == cursor_col && row == 0 {
                         spans.push(Span::styled(
                             format!("{:02X}", b),
                             Style::default().bg(Color::White)
@@ -141,7 +140,7 @@ pub fn run(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
                         '.'
                     };
 
-                    if k == cursor_col && row == cursor_row {
+                    if k == cursor_col && row == 0 {
                         spans.push(Span::styled(
                             c.to_string(),
                             Style::default().fg(Color::Green).bg(Color::White)
