@@ -35,6 +35,14 @@ pub fn run(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
                 match key.code {
                     KeyCode::Char('q') => break,
 
+                    KeyCode::PageDown => {
+                        offset = (offset + (bytes_per_row * viewport_rows) as u64).min(size.saturating_sub((viewport_rows * bytes_per_row) as u64));
+                    }
+
+                    KeyCode::PageUp => {
+                        offset = offset.saturating_sub((bytes_per_row * viewport_rows) as u64);
+                    }
+
                     KeyCode::Down => {
                         if cursor_row + 1 < content_rows.min(viewport_rows) {
                             cursor_row += 1;
