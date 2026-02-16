@@ -1,7 +1,6 @@
 use crossterm::{
     event::{self, Event, KeyCode}
 };
-
 use std::io::Seek;
 use std::io::SeekFrom;
 use std::io::Read;
@@ -24,7 +23,7 @@ pub fn run(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let mut offset = 0u64;
     let mut bytes_per_row: usize = 16;
 
-    let mut cursor_col = 0usize;
+    let mut cursor_col: usize = 0;
 
     loop {
         if event::poll(std::time::Duration::from_millis(200))? {
@@ -60,7 +59,6 @@ pub fn run(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
         terminal.draw(|f| {
             let area = f.area();
             let rows = area.height.saturating_sub(2) as usize;
-
             bytes_per_row = ((area.width as usize).saturating_sub(15) / 4).max(1);
 
             let mut lines = vec![
@@ -72,6 +70,13 @@ pub fn run(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
 
             file.seek(SeekFrom::Start(offset)).unwrap();
             let bytes_read = file.read(&mut buffer).unwrap();
+
+            let content_rows = (bytes_read + bytes_per_row - 1) / bytes_per_row;
+            let top_padding = ((rows).saturating_sub(content_rows)) / 2;
+
+            for _ in 0..top_padding {
+                lines.push(Line::from(""));
+            }
 
             let content_width: u16 = (8 + 4 + 3 * bytes_per_row + 3 + bytes_per_row) as u16;
 
@@ -88,14 +93,12 @@ pub fn run(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
                 .direction(Direction::Vertical)
                 .constraints([
                     Constraint::Min(0),
-                    Constraint::Length(((bytes_read + bytes_per_row - 1) / bytes_per_row) as u16),
+                    Constraint::Length(content_rows as u16),
                     Constraint::Min(0),
                 ])
                 .split(horizontal[1]);
 
-            let centered_area = vertical[1];
-
-            for row in 0..rows {
+            for row in 0..content_rows {
                 let start = row * bytes_per_row;
 
                 if start >= bytes_read {
@@ -105,20 +108,20 @@ pub fn run(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
                 let end = (start + bytes_per_row).min(bytes_read);
                 let slice = &buffer[start..end];
 
-                let offset = offset + start as u64;
+                let line_offset = offset + start as u64;
 
                 let mut spans = Vec::new();
 
                 spans.push(
                     Span::styled(
-                        format!("{:08X}", offset),
+                        format!("{:08X}", line_offset),
                         Style::default().fg(Color::Yellow),
                     )
                 );
 
                 spans.push(Span::raw("    "));
 
-                for (k, b) in slice.into_iter().enumerate() {
+                for (k, b) in slice.iter().enumerate() {
                     if k == cursor_col && row == 0 {
                         spans.push(Span::styled(
                             format!("{:02X}", b),
@@ -132,8 +135,8 @@ pub fn run(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
                 }
 
                 spans.push(Span::raw("   "));
-                
-                for (k, b) in slice.into_iter().enumerate() {
+
+                for (k, b) in slice.iter().enumerate() {
                     let c = if b.is_ascii_graphic() || *b == b' ' {
                         *b as char
                     } else {
@@ -155,10 +158,11 @@ pub fn run(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
 
                 lines.push(Line::from(spans));
             }
-            
-            let paragraph = Paragraph::new(lines);
 
-            f.render_widget(paragraph, centered_area);
+            let paragraph = Paragraph::new(lines)
+                .alignment(Alignment::Center);
+
+            f.render_widget(paragraph, area);
         })?;
     }
 
