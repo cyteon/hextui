@@ -47,10 +47,12 @@ pub fn run(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
             let area = f.area();
             let rows = area.height.saturating_sub(2) as usize;
 
-            // offset(8) + gap(4) + hex(3*N) + gap(3) + ascii(N) = 15 + 4*N
             bytes_per_row = ((area.width as usize).saturating_sub(15) / 4).max(1);
 
-            let mut lines = Vec::new();
+            let mut lines = vec![
+                Line::from(format!("{} - {} MB", path.display(), size as f32 * 1e-6))
+            ];
+
             let bytes_to_read = rows * bytes_per_row;
             let mut buffer = vec![0u8; bytes_to_read];
 
